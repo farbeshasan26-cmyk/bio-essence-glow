@@ -20,7 +20,7 @@ function getCookie(req, name) {
   return null;
 }
 
-function verifyToken(token) {
+function verifySession(token) {
   if (!token) return null;
 
   const secret = process.env.SESSION_SECRET;
@@ -41,9 +41,7 @@ function verifyToken(token) {
 
   if (a.length !== b.length) return null;
 
-  if (!crypto.timingSafeEqual(a, b)) {
-    return null;
-  }
+  if (!crypto.timingSafeEqual(a, b)) return null;
 
   try {
     return JSON.parse(
@@ -59,8 +57,8 @@ async function supabaseRequest(path, options = {}) {
 
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
     throw new Error("Supabase environment variables missing");
@@ -74,7 +72,7 @@ async function supabaseRequest(path, options = {}) {
         apikey: key,
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
-        Prefer: "return=representation,resolution=merge-duplicates",
+        Prefer: "return=representation",
         ...(options.headers || {})
       }
     }
@@ -95,9 +93,9 @@ async function supabaseRequest(path, options = {}) {
       typeof data === "string"
         ? data
         : data?.message ||
-          data?.hint ||
           data?.details ||
-          "Supabase request failed"
+          data?.hint ||
+          `Supabase error ${response.status}`
     );
   }
 
@@ -112,16 +110,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const token = getCookie(req, "session");
-    const user = verifyToken(token);
+    /*
+      Admin authentication:
+      প্রথমে normal session check হবে।
+      পুরোনো admin_session থাকলেও Admin panel থেকে
+      Duty publish করতে পারবে।
+    */
 
-    if (!user) {
+    const sessionToken = getCookie(req, "session");
+    const adminSession = getCookie(req, "admin_session");
+
+    const user = verifySession(sessionToken);
+
+    if (!user && !adminSession) {
       return res.status(401).json({
-        error: "আপনি Login করা নেই"
+        error: "Admin Login প্রয়োজন"
       });
     }
 
-    if (user.role !== "admin") {
+    if (user && user.role !== "admin") {
       return res.status(403).json({
         error: "শুধু Admin এই কাজটি করতে পারবেন"
       });
@@ -157,7 +164,7 @@ export default async function handler(req, res) {
       videoDurationSeconds <= 0
     ) {
       return res.status(400).json({
-        error: "Duty-এর মান অবশ্যই 0-এর বেশি হতে হবে"
+        error: "Duty-এর সব মান 0-এর বেশি হতে হবে"
       });
     }
 
@@ -165,24 +172,23 @@ export default async function handler(req, res) {
     const totalReward =
       videoCount * adsPerVideo * rewardPerAd;
 
+    /*
+      একই duty_hours থাকলে UPDATE করবে,
+      না থাকলে নতুন row তৈরি করবে।
+    */
+
     const result = await supabaseRequest(
-      "duty_settings?on_conflict=duty_hours",
+      `duty_settings?on_conflict=duty_hours`,
       {
         method: "POST",
+
         body: JSON.stringify({
           duty_hours: dutyHours,
-
-          // Database-এর আসল column name
           videos_required: videoCount,
-
           ads_per_video: adsPerVideo,
           reward_per_ad: rewardPerAd,
           video_duration_seconds: videoDurationSeconds,
-
-          // generated column হলেও compatibility-এর জন্য
-          // এখানে পাঠানো হচ্ছে না
           active: true,
-
           updated_at: new Date().toISOString()
         })
       }
@@ -190,7 +196,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: `${dutyHours} ঘণ্টার Duty Publish হয়েছে`,
+      message: `${dutyHours} ঘণ্টার Duty সফলভাবে Publish হয়েছে`,
       total_ads: totalAds,
       total_reward: totalReward,
       duty: Array.isArray(result)
@@ -199,12 +205,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("Duty settings error:", error);
+    console.error("Duty publish error:", error);
 
     return res.status(500).json({
-      error:
-        error.message ||
-        "Duty Publish করতে সমস্যা হয়েছে"
+      ok: false,
+      error: error.message || "Duty Publish করতে সমস্যা হয়েছে"
     });
   }
 }
