@@ -1,0 +1,1 @@
+async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone.value,password:password.value})});const d=await r.json();if(r.ok)location.href=d.role==='admin'?'/admin.html':'/dashboard.html';else msg.textContent=d.error}
