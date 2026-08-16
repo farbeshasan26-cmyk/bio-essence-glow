@@ -1,69 +1,67 @@
 import crypto from "crypto";
 
-function getCookie(req, name) {
-  const cookies = req.headers.cookie || "";
-
-  const parts = cookies.split(";").map(x => x.trim());
-
-  for (const part of parts) {
-    const index = part.indexOf("=");
-
-    if (index === -1) continue;
-
-    const key = part.substring(0, index);
-    const value = part.substring(index + 1);
-
-    if (key === name) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
-function verifyToken(token) {
-  if (!token) return null;
+function createToken(payload) {
+  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
 
   const secret = process.env.SESSION_SECRET;
 
-  const parts = token.split(".");
-
-  if (parts.length !== 2) return null;
-
-  const [data, signature] = parts;
-
-  const expected = crypto
+  const signature = crypto
     .createHmac("sha256", secret)
     .update(data)
     .digest("base64url");
 
-  if (signature !== expected) return null;
-
-  try {
-    return JSON.parse(
-      Buffer.from(data, "base64url").toString("utf8")
-    );
-  } catch {
-    return null;
-  }
+  return `${data}.${signature}`;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") {
+  if (req.method !== "POST") {
     return res.status(405).json({
       error: "Method not allowed"
     });
   }
 
-  const token = getCookie(req, "session");
+  const { phone, password } = req.body || {};
 
-  const user = verifyToken(token);
+  const workerId = process.env.WORKER_ID;
+  const workerPassword = process.env.WORKER_PASSWORD;
+
+  const adminId = process.env.ADMIN_ID;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  let user = null;
+
+  if (phone === adminId && password === adminPassword) {
+    user = {
+      id: phone,
+      name: "Administrator",
+      role: "admin",
+      balance: 0,
+      pending_balance: 0
+    };
+  } else if (phone === workerId && password === workerPassword) {
+    user = {
+      id: phone,
+      name: "Worker",
+      role: "worker",
+      balance: 0,
+      pending_balance: 0
+    };
+  }
 
   if (!user) {
     return res.status(401).json({
-      error: "আপনি Login করা নেই"
+      error: "ভুল Worker ID অথবা Password"
     });
   }
 
-  return res.status(200).json(user);
+  const token = createToken(user);
+
+  res.setHeader(
+    "Set-Cookie",
+    `session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`
+  );
+
+  return res.status(200).json({
+    role: user.role
+  });
 }
