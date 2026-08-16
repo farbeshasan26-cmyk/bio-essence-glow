@@ -39,35 +39,130 @@ function verifyToken(token) {
     .update(data)
     .digest("base64url");
 
-  if (signature !== expected) return null;
+  if (signature.length !== expected.length) {
+    return null;
+  }
+
+  try {
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expected)
+      )
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
 
   try {
     return JSON.parse(
-      Buffer.from(
-        data,
-        "base64url"
-      ).toString("utf8")
+      Buffer.from(data, "base64url").toString("utf8")
     );
   } catch {
     return null;
   }
 }
 
-export default async function handler(req, res) {
+function getSupabaseKey() {
+  /*
+    আপনার Vercel Environment Variables অনুযায়ী
+    SUPABASE_SECRET_KEY-কে প্রথম priority দেওয়া হয়েছে।
+  */
 
-  if (req.method !== "GET") {
+  return (
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    null
+  );
+}
+
+async function supabaseRequest(path, options = {}) {
+  const url = process.env.SUPABASE_URL;
+  const key = getSupabaseKey();
+
+  if (!url) {
+    throw new Error(
+      "SUPABASE_URL পাওয়া যায়নি"
+    );
+  }
+
+  if (!key) {
+    throw new Error(
+      "SUPABASE_SECRET_KEY পাওয়া যায়নি"
+    );
+  }
+
+  const response = await fetch(
+    `${url}/rest/v1/${path}`,
+    {
+      ...options,
+
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+
+        /*
+          Existing duty_hours row থাকলে update করবে,
+          না থাকলে নতুন row তৈরি করবে।
+        */
+        Prefer:
+          "resolution=merge-duplicates,return=representation",
+
+        ...(options.headers || {})
+      }
+    }
+  );
+
+  const text = await response.text();
+
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      typeof data === "string"
+        ? data
+        : data?.message ||
+          data?.hint ||
+          data?.details ||
+          data?.error ||
+          "Supabase request failed";
+
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
     return res.status(405).json({
       error: "Method not allowed"
     });
   }
 
   try {
+    /*
+      ==============================
+      ADMIN LOGIN CHECK
+      ==============================
+    */
 
-    const token =
+    const sessionToken =
       getCookie(req, "session");
 
     const user =
-      verifyToken(token);
+      verifyToken(sessionToken);
 
     if (!user) {
       return res.status(401).json({
@@ -75,59 +170,162 @@ export default async function handler(req, res) {
       });
     }
 
-    const url =
-      process.env.SUPABASE_URL;
-
-    const key =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.SUPABASE_SECRET_KEY;
-
-    if (!url || !key) {
-      return res.status(500).json({
+    if (user.role !== "admin") {
+      return res.status(403).json({
         error:
-          "Supabase environment variables missing"
+          "শুধু Admin এই কাজটি করতে পারবেন"
       });
     }
 
-    const response =
-      await fetch(
-        `${url}/rest/v1/duty_settings` +
-        `?select=duty_hours,videos_required,` +
-        `ads_per_video,reward_per_ad,` +
-        `video_duration_seconds,total_ads,` +
-        `total_reward,active` +
-        `&active=eq.true` +
-        `&order=duty_hours.asc`,
+
+    /*
+      ==============================
+      READ REQUEST
+      ==============================
+    */
+
+    const body = req.body || {};
+
+    const dutyHours =
+      Number(body.duty_hours);
+
+    const videoCount =
+      Number(
+        body.video_count ??
+        body.videos_required
+      );
+
+    const adsPerVideo =
+      Number(body.ads_per_video);
+
+    const rewardPerAd =
+      Number(body.reward_per_ad);
+
+    const videoDurationSeconds =
+      Number(
+        body.video_duration_seconds
+      );
+
+
+    /*
+      ==============================
+      VALIDATION
+      ==============================
+    */
+
+    if (
+      !Number.isFinite(dutyHours) ||
+      !Number.isFinite(videoCount) ||
+      !Number.isFinite(adsPerVideo) ||
+      !Number.isFinite(rewardPerAd) ||
+      !Number.isFinite(videoDurationSeconds)
+    ) {
+      return res.status(400).json({
+        error:
+          "Duty-এর তথ্য সঠিক নয়"
+      });
+    }
+
+    if (
+      dutyHours <= 0 ||
+      videoCount <= 0 ||
+      adsPerVideo <= 0 ||
+      rewardPerAd <= 0 ||
+      videoDurationSeconds <= 0
+    ) {
+      return res.status(400).json({
+        error:
+          "Duty-এর সব মান 0-এর বেশি হতে হবে"
+      });
+    }
+
+
+    /*
+      ==============================
+      CALCULATE
+      ==============================
+    */
+
+    const totalAds =
+      videoCount * adsPerVideo;
+
+    const totalReward =
+      totalAds * rewardPerAd;
+
+
+    /*
+      ==============================
+      SAVE / UPDATE DUTY
+      ==============================
+
+      duty_hours UNIQUE হলে:
+      6 ঘণ্টা আগে থাকলে 6 ঘণ্টারটাই update হবে।
+      12 ঘণ্টা আগে থাকলে 12 ঘণ্টারটাই update হবে।
+
+      নতুন হলে নতুন row তৈরি হবে।
+    */
+
+    const result =
+      await supabaseRequest(
+        "duty_settings?on_conflict=duty_hours",
         {
-          method: "GET",
-          headers: {
-            apikey: key,
-            Authorization:
-              `Bearer ${key}`
-          }
+          method: "POST",
+
+          body: JSON.stringify({
+            duty_hours: dutyHours,
+
+            video_count: videoCount,
+
+            ads_per_video:
+              adsPerVideo,
+
+            reward_per_ad:
+              rewardPerAd,
+
+            video_duration_seconds:
+              videoDurationSeconds,
+
+            total_ads:
+              totalAds,
+
+            total_reward:
+              totalReward,
+
+            updated_at:
+              new Date().toISOString()
+          })
         }
       );
 
-    const text =
-      await response.text();
 
-    if (!response.ok) {
+    /*
+      ==============================
+      SUCCESS
+      ==============================
+    */
 
-      return res.status(500).json({
-        error:
-          text ||
-          "Duty load failed"
-      });
-    }
-
-    const duties =
-      text
-        ? JSON.parse(text)
-        : [];
+    const savedDuty =
+      Array.isArray(result)
+        ? result[0]
+        : result;
 
     return res.status(200).json({
       ok: true,
-      duties
+
+      message:
+        `${dutyHours} ঘণ্টার Duty successfully published.`,
+
+      duty:
+        savedDuty || {
+          duty_hours: dutyHours,
+          video_count: videoCount,
+          ads_per_video: adsPerVideo,
+          reward_per_ad: rewardPerAd,
+          video_duration_seconds:
+            videoDurationSeconds,
+          total_ads: totalAds,
+          total_reward: totalReward
+        }
     });
 
   } catch (error) {
@@ -138,9 +336,11 @@ export default async function handler(req, res) {
     );
 
     return res.status(500).json({
+      ok: false,
+
       error:
-        error.message ||
-        "Duty load failed"
+        error?.message ||
+        "Duty Publish করতে সমস্যা হয়েছে"
     });
   }
 }
