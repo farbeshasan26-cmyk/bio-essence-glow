@@ -12,11 +12,6 @@ export default async function handler(req, res) {
   const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (phone === adminId && password === adminPassword) {
-    res.setHeader(
-      "Set-Cookie",
-      "admin_session=authenticated; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"
-    );
-
     return res.status(200).json({ role: "admin" });
   }
 
