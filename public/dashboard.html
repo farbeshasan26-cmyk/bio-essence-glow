@@ -1,1 +1,123 @@
-<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Worker Dashboard</title><link rel="stylesheet" href="/style.css"></head><body><main class="wrap"><div class="top"><div class="brand">BG <span>Bio-essence Glow Ltd</span></div><button class="secondary" onclick="logout()">Logout</button></div><section><h1 id="name">Worker Dashboard</h1><div class="stats"><div>Balance<strong id="balance">৳0</strong></div><div>Pending<strong id="pending">৳0</strong></div></div><div class="panel"><h2>আজকের কাজ</h2><div id="tasks"></div></div></section></main><script src="/dashboard.js"></script></body></html>
+```html
+<!doctype html>
+<html lang="bn">
+
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Worker Dashboard</title>
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+  <main class="wrap">
+
+    <!-- Header -->
+    <div class="top">
+      <div class="brand">
+        BG
+        <span>Bio-essence Glow Ltd</span>
+      </div>
+
+      <button
+        class="secondary"
+        onclick="logout()"
+      >
+        Logout
+      </button>
+    </div>
+
+
+    <!-- Worker Account -->
+    <section>
+
+      <h1 id="name">
+        Worker Dashboard
+      </h1>
+
+      <p id="phone">
+        Worker Account
+      </p>
+
+
+      <!-- Account Stats -->
+      <div class="stats">
+
+        <div>
+          Balance
+          <strong id="balance">
+            ৳0
+          </strong>
+        </div>
+
+        <div>
+          Pending
+          <strong id="pending">
+            ৳0
+          </strong>
+        </div>
+
+        <div>
+          Completed Ads
+          <strong id="completedAds">
+            0
+          </strong>
+        </div>
+
+      </div>
+
+
+      <!-- Duty Section -->
+      <div class="panel">
+
+        <h2>
+          আজকের কাজ
+        </h2>
+
+        <p>
+          Admin থেকে প্রকাশ করা Duty এখানে দেখা যাবে।
+        </p>
+
+        <div id="duties">
+
+          <p>
+            Duty লোড হচ্ছে...
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <!-- Existing Tasks -->
+      <div class="panel">
+
+        <h2>
+          Available Tasks
+        </h2>
+
+        <div id="tasks">
+          <p>
+            Task লোড হচ্ছে...
+          </p>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <script src="/dashboard.js"></script>
+
+</body>
+
+</html>
+```
