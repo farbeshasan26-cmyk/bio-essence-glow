@@ -9,198 +9,82 @@ async function load() {
 
     const u = await r.json();
 
-    const usersElement = document.getElementById("users");
+    document.getElementById("users").innerHTML =
+      u.length
+        ? u.map(x => `
+            <div class="user">
+              <div>
+                <b>${x.name}</b>
+                <p>${x.phone} · ${x.status}</p>
+              </div>
 
-    if (!usersElement) return;
-
-    usersElement.innerHTML =
-      u.map(x => `
-        <div class="user">
-          <div>
-            <b>${escapeHtml(x.name || "")}</b>
-            <p>
-              ${escapeHtml(x.phone || "")}
-              ·
-              ${escapeHtml(x.status || "")}
-            </p>
-          </div>
-
-          ${
-            x.status !== "active"
-              ? `<button onclick="approve('${x.id}')">
-                   Approve
-                 </button>`
-              : ""
-          }
-        </div>
-      `).join("") ||
-      "<p>No workers yet.</p>";
+              ${
+                x.status !== "active"
+                  ? `<button onclick="approve(${x.id})">
+                       Approve
+                     </button>`
+                  : ""
+              }
+            </div>
+          `).join("")
+        : "<p>No workers yet.</p>";
 
   } catch (error) {
-    console.error("Worker loading error:", error);
+    console.error(error);
   }
 }
-
-
-// =====================================
-// Approve Worker
-// =====================================
 
 async function approve(id) {
-
-  try {
-
-    const r = await fetch(
-      "/api/admin/users/" +
-      encodeURIComponent(id) +
-      "/approve",
-      {
-        method: "POST"
-      }
-    );
-
-    const d = await r.json();
-
-    if (!r.ok) {
-      alert(d.error || "Worker approve করা যায়নি");
-      return;
+  await fetch(
+    "/api/admin/users/" + id + "/approve",
+    {
+      method: "POST"
     }
+  );
 
-    await load();
-
-  } catch (error) {
-
-    console.error(error);
-
-    alert(
-      "Worker approve করতে সমস্যা হয়েছে"
-    );
-  }
+  load();
 }
 
-
-// =====================================
-// Create Normal Task
-// =====================================
-
 async function createTask() {
+  const msg = document.getElementById("msg");
 
-  const titleElement =
-    document.getElementById("title");
-
-  const urlElement =
-    document.getElementById("url");
-
-  const rewardElement =
-    document.getElementById("reward");
-
-  const durationElement =
-    document.getElementById("duration");
-
-  const msgElement =
-    document.getElementById("msg");
-
-  const title =
-    titleElement?.value.trim();
-
-  const videoUrl =
-    urlElement?.value.trim();
-
-  const reward =
-    Number(rewardElement?.value || 0);
-
-  const duration =
-    Number(durationElement?.value || 0);
-
-
-  if (!title || !videoUrl || reward <= 0 || duration <= 0) {
-
-    if (msgElement) {
-      msgElement.textContent =
-        "সব তথ্য সঠিকভাবে দিন";
-    }
-
-    return;
-  }
-
-
-  if (msgElement) {
-    msgElement.textContent =
-      "Task তৈরি হচ্ছে...";
-  }
-
+  msg.textContent = "Task তৈরি হচ্ছে...";
 
   try {
-
     const r = await fetch(
       "/api/admin/tasks",
       {
         method: "POST",
-
         headers: {
-          "Content-Type":
-            "application/json"
+          "Content-Type": "application/json"
         },
-
         body: JSON.stringify({
-          title: title,
-          video_url: videoUrl,
-          reward: reward,
-          duration_seconds: duration
+          title: document.getElementById("title").value,
+          video_url: document.getElementById("url").value,
+          reward: Number(
+            document.getElementById("reward").value
+          ),
+          duration_seconds: Number(
+            document.getElementById("duration").value
+          )
         })
       }
     );
 
     const d = await r.json();
 
-    if (!r.ok) {
-
-      if (msgElement) {
-        msgElement.textContent =
-          d.error ||
-          "Task তৈরি করা যায়নি";
-      }
-
-      return;
-    }
-
-
-    if (msgElement) {
-      msgElement.textContent =
-        "Task successfully created.";
-    }
-
-
-    if (titleElement)
-      titleElement.value = "";
-
-    if (urlElement)
-      urlElement.value = "";
-
-    if (rewardElement)
-      rewardElement.value = "";
-
-    if (durationElement)
-      durationElement.value = "5400";
+    msg.textContent =
+      d.ok
+        ? "Task সফলভাবে তৈরি হয়েছে।"
+        : d.error || "Task তৈরি করা যায়নি।";
 
   } catch (error) {
+    console.error(error);
 
-    console.error(
-      "Create task error:",
-      error
-    );
-
-    if (msgElement) {
-      msgElement.textContent =
-        "Task তৈরি করতে সমস্যা হয়েছে";
-    }
+    msg.textContent =
+      "Server error হয়েছে।";
   }
 }
-
-
-// =====================================
-// Publish Duty
-// =====================================
 
 async function createDuty(
   dutyHours,
@@ -209,176 +93,58 @@ async function createDuty(
   rewardPerAd,
   videoDurationSeconds
 ) {
-
   const dutyMsg =
     document.getElementById("dutyMsg");
 
+  if (!dutyMsg) return;
 
-  if (dutyMsg) {
-    dutyMsg.textContent =
-      `${dutyHours} ঘণ্টার Duty publish হচ্ছে...`;
-  }
-
-
-  // Calculate values
-  const totalAds =
-    Number(videoCount) *
-    Number(adsPerVideo);
-
-  const totalReward =
-    totalAds *
-    Number(rewardPerAd);
-
+  dutyMsg.textContent =
+    "Duty publish হচ্ছে...";
 
   try {
-
-    /*
-      Admin Duty API
-    */
-
     const r = await fetch(
       "/api/admin/duty-settings",
       {
         method: "POST",
-
         headers: {
-          "Content-Type":
-            "application/json"
+          "Content-Type": "application/json"
         },
-
         body: JSON.stringify({
-
-          duty_hours:
-            Number(dutyHours),
-
-          video_count:
-            Number(videoCount),
-
-          videos_required:
-            Number(videoCount),
-
-          ads_per_video:
-            Number(adsPerVideo),
-
-          reward_per_ad:
-            Number(rewardPerAd),
-
+          duty_hours: Number(dutyHours),
+          video_count: Number(videoCount),
+          ads_per_video: Number(adsPerVideo),
+          reward_per_ad: Number(rewardPerAd),
           video_duration_seconds:
-            Number(videoDurationSeconds),
-
-          total_ads:
-            totalAds,
-
-          total_reward:
-            totalReward
+            Number(videoDurationSeconds)
         })
       }
     );
 
-
-    const text =
-      await r.text();
-
-
-    let d;
-
-    try {
-      d = text
-        ? JSON.parse(text)
-        : {};
-    } catch {
-      d = {
-        error: text
-      };
-    }
-
+    const d = await r.json();
 
     if (!r.ok) {
-
-      console.error(
-        "Duty publish failed:",
-        d
-      );
-
-      if (d.error) {
-
-        if (d.error.includes("row-level security")) {
-
-          if (dutyMsg) {
-            dutyMsg.textContent =
-              "Supabase RLS permission error।";
-          }
-
-        } else {
-
-          if (dutyMsg) {
-            dutyMsg.textContent =
-              d.error;
-          }
-        }
-
-      } else {
-
-        if (dutyMsg) {
-          dutyMsg.textContent =
-            "Duty Publish করা যায়নি।";
-        }
-      }
-
+      dutyMsg.textContent =
+        d.error || "Duty publish করা যায়নি।";
       return;
     }
 
-
-    /*
-      Success
-    */
-
-    if (dutyMsg) {
-
-      dutyMsg.textContent =
-        `${dutyHours} ঘণ্টার Duty successfully published.`;
-    }
-
-
-    console.log(
-      "Duty published:",
-      d
-    );
-
+    dutyMsg.textContent =
+      `${dutyHours} ঘণ্টার Duty সফলভাবে প্রকাশ হয়েছে।`;
 
   } catch (error) {
+    console.error("Duty publish error:", error);
 
-    console.error(
-      "Duty publish error:",
-      error
-    );
-
-    if (dutyMsg) {
-
-      dutyMsg.textContent =
-        "Duty Publish করতে সংযোগ সমস্যা হয়েছে।";
-    }
+    dutyMsg.textContent =
+      "Duty publish করতে Server error হয়েছে।";
   }
 }
 
+async function logout() {
+  await fetch("/api/logout", {
+    method: "POST"
+  });
 
-// =====================================
-// Escape HTML
-// =====================================
-
-function escapeHtml(value) {
-
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  location.href = "/";
 }
-
-
-// =====================================
-// Start
-// =====================================
 
 load();
