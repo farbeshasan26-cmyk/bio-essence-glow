@@ -61,7 +61,9 @@ async function supabaseRequest(path, options = {}) {
     process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
-    throw new Error("Supabase environment variables missing");
+    throw new Error(
+      "Supabase environment variables missing"
+    );
   }
 
   const response = await fetch(
@@ -72,7 +74,7 @@ async function supabaseRequest(path, options = {}) {
         apikey: key,
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
-        Prefer: "return=representation",
+        Prefer: "return=representation,resolution=merge-duplicates",
         ...(options.headers || {})
       }
     }
@@ -111,10 +113,7 @@ export default async function handler(req, res) {
 
   try {
     /*
-      Admin authentication:
-      প্রথমে normal session check হবে।
-      পুরোনো admin_session থাকলেও Admin panel থেকে
-      Duty publish করতে পারবে।
+      Admin authentication
     */
 
     const sessionToken = getCookie(req, "session");
@@ -136,49 +135,60 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
 
+    /*
+      Duty hours আগে নেওয়া হবে।
+    */
+
     const dutyHours = Number(body.duty_hours);
-    const videoCount = Number(body.video_count);
-    const adsPerVideo = Number(body.ads_per_video);
-    const rewardPerAd = Number(body.reward_per_ad);
-    const videoDurationSeconds = Number(
-      body.video_duration_seconds
-    );
 
-    if (
-      !Number.isFinite(dutyHours) ||
-      !Number.isFinite(videoCount) ||
-      !Number.isFinite(adsPerVideo) ||
-      !Number.isFinite(rewardPerAd) ||
-      !Number.isFinite(videoDurationSeconds)
-    ) {
+    if (!Number.isFinite(dutyHours)) {
       return res.status(400).json({
-        error: "Duty-এর তথ্য সঠিক নয়"
+        error: "Duty hours পাওয়া যায়নি"
       });
     }
-
-    if (
-      dutyHours <= 0 ||
-      videoCount <= 0 ||
-      adsPerVideo <= 0 ||
-      rewardPerAd <= 0 ||
-      videoDurationSeconds <= 0
-    ) {
-      return res.status(400).json({
-        error: "Duty-এর সব মান 0-এর বেশি হতে হবে"
-      });
-    }
-
-    const totalAds = videoCount * adsPerVideo;
-    const totalReward =
-      videoCount * adsPerVideo * rewardPerAd;
 
     /*
-      একই duty_hours থাকলে UPDATE করবে,
-      না থাকলে নতুন row তৈরি করবে।
+      ৬ ঘণ্টা এবং ১২ ঘণ্টার Duty-এর
+      নির্দিষ্ট configuration।
+    */
+
+    let videoCount;
+    let adsPerVideo;
+    let rewardPerAd;
+    let videoDurationSeconds;
+
+    if (dutyHours === 6) {
+      videoCount = 4;
+      adsPerVideo = 20;
+      rewardPerAd = 10;
+      videoDurationSeconds = 5400;
+    } else if (dutyHours === 12) {
+      videoCount = 8;
+      adsPerVideo = 20;
+      rewardPerAd = 10;
+      videoDurationSeconds = 5400;
+    } else {
+      return res.status(400).json({
+        error: "শুধু ৬ ঘণ্টা অথবা ১২ ঘণ্টার Duty দেওয়া যাবে"
+      });
+    }
+
+    /*
+      হিসাব
+    */
+
+    const totalAds =
+      videoCount * adsPerVideo;
+
+    const totalReward =
+      totalAds * rewardPerAd;
+
+    /*
+      Database-এ save
     */
 
     const result = await supabaseRequest(
-      `duty_settings?on_conflict=duty_hours`,
+      "duty_settings?on_conflict=duty_hours",
       {
         method: "POST",
 
@@ -187,29 +197,42 @@ export default async function handler(req, res) {
           videos_required: videoCount,
           ads_per_video: adsPerVideo,
           reward_per_ad: rewardPerAd,
-          video_duration_seconds: videoDurationSeconds,
+          video_duration_seconds:
+            videoDurationSeconds,
           active: true,
-          updated_at: new Date().toISOString()
+          updated_at:
+            new Date().toISOString()
         })
       }
     );
 
     return res.status(200).json({
       ok: true,
-      message: `${dutyHours} ঘণ্টার Duty সফলভাবে Publish হয়েছে`,
+
+      message:
+        `${dutyHours} ঘণ্টার Duty সফলভাবে Publish হয়েছে`,
+
       total_ads: totalAds,
+
       total_reward: totalReward,
-      duty: Array.isArray(result)
-        ? result[0]
-        : result
+
+      duty:
+        Array.isArray(result)
+          ? result[0]
+          : result
     });
 
   } catch (error) {
-    console.error("Duty publish error:", error);
+    console.error(
+      "Duty publish error:",
+      error
+    );
 
     return res.status(500).json({
       ok: false,
-      error: error.message || "Duty Publish করতে সমস্যা হয়েছে"
+      error:
+        error.message ||
+        "Duty Publish করতে সমস্যা হয়েছে"
     });
   }
 }
