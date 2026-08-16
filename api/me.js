@@ -1,67 +1,99 @@
 import crypto from "crypto";
 
-function createToken(payload) {
-  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+function getCookie(req, name) {
+  const cookies = req.headers.cookie || "";
+
+  for (const part of cookies.split(";")) {
+    const item = part.trim();
+    const index = item.indexOf("=");
+
+    if (index === -1) continue;
+
+    const key = item.slice(0, index);
+    const value = item.slice(index + 1);
+
+    if (key === name) {
+      return decodeURIComponent(value);
+    }
+  }
+
+  return null;
+}
+
+function verifyToken(token) {
+  if (!token) return null;
 
   const secret = process.env.SESSION_SECRET;
 
-  const signature = crypto
+  if (!secret) return null;
+
+  const parts = token.split(".");
+
+  if (parts.length !== 2) return null;
+
+  const [data, signature] = parts;
+
+  const expected = crypto
     .createHmac("sha256", secret)
     .update(data)
     .digest("base64url");
 
-  return `${data}.${signature}`;
+  try {
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expected)
+      )
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    return JSON.parse(
+      Buffer.from(data, "base64url").toString("utf8")
+    );
+  } catch {
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+  if (req.method !== "GET") {
     return res.status(405).json({
       error: "Method not allowed"
     });
   }
 
-  const { phone, password } = req.body || {};
+  try {
+    const token = getCookie(req, "session");
 
-  const workerId = process.env.WORKER_ID;
-  const workerPassword = process.env.WORKER_PASSWORD;
+    const user = verifyToken(token);
 
-  const adminId = process.env.ADMIN_ID;
-  const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!user) {
+      return res.status(401).json({
+        error: "আপনি Login করা নেই"
+      });
+    }
 
-  let user = null;
+    return res.status(200).json({
+      ok: true,
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      balance: Number(user.balance || 0),
+      pending_balance: Number(
+        user.pending_balance || 0
+      )
+    });
 
-  if (phone === adminId && password === adminPassword) {
-    user = {
-      id: phone,
-      name: "Administrator",
-      role: "admin",
-      balance: 0,
-      pending_balance: 0
-    };
-  } else if (phone === workerId && password === workerPassword) {
-    user = {
-      id: phone,
-      name: "Worker",
-      role: "worker",
-      balance: 0,
-      pending_balance: 0
-    };
-  }
+  } catch (error) {
+    console.error("Me API error:", error);
 
-  if (!user) {
-    return res.status(401).json({
-      error: "ভুল Worker ID অথবা Password"
+    return res.status(500).json({
+      error: "User information load করতে সমস্যা হয়েছে"
     });
   }
-
-  const token = createToken(user);
-
-  res.setHeader(
-    "Set-Cookie",
-    `session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`
-  );
-
-  return res.status(200).json({
-    role: user.role
-  });
 }
