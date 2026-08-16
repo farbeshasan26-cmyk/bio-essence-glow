@@ -1,3 +1,4 @@
+```javascript
 import crypto from "crypto";
 
 function getCookie(req, name) {
@@ -20,13 +21,15 @@ function getCookie(req, name) {
   return null;
 }
 
-function verifySession(token) {
+function verifyToken(token) {
   if (!token) return null;
 
   const secret = process.env.SESSION_SECRET;
+
   if (!secret) return null;
 
   const parts = token.split(".");
+
   if (parts.length !== 2) return null;
 
   const [data, signature] = parts;
@@ -36,203 +39,109 @@ function verifySession(token) {
     .update(data)
     .digest("base64url");
 
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-
-  if (a.length !== b.length) return null;
-
-  if (!crypto.timingSafeEqual(a, b)) return null;
+  if (signature !== expected) return null;
 
   try {
     return JSON.parse(
-      Buffer.from(data, "base64url").toString("utf8")
+      Buffer.from(
+        data,
+        "base64url"
+      ).toString("utf8")
     );
   } catch {
     return null;
   }
 }
 
-async function supabaseRequest(path, options = {}) {
-  const url = process.env.SUPABASE_URL;
-
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Supabase environment variables missing"
-    );
-  }
-
-  const response = await fetch(
-    `${url}/rest/v1/${path}`,
-    {
-      ...options,
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation,resolution=merge-duplicates",
-        ...(options.headers || {})
-      }
-    }
-  );
-
-  const text = await response.text();
-
-  let data = null;
-
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      typeof data === "string"
-        ? data
-        : data?.message ||
-          data?.details ||
-          data?.hint ||
-          `Supabase error ${response.status}`
-    );
-  }
-
-  return data;
-}
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+
+  if (req.method !== "GET") {
     return res.status(405).json({
       error: "Method not allowed"
     });
   }
 
   try {
-    /*
-      Admin authentication
-    */
 
-    const sessionToken = getCookie(req, "session");
-    const adminSession = getCookie(req, "admin_session");
+    const token =
+      getCookie(req, "session");
 
-    const user = verifySession(sessionToken);
+    const user =
+      verifyToken(token);
 
-    if (!user && !adminSession) {
+    if (!user) {
       return res.status(401).json({
-        error: "Admin Login প্রয়োজন"
+        error: "আপনি Login করা নেই"
       });
     }
 
-    if (user && user.role !== "admin") {
-      return res.status(403).json({
-        error: "শুধু Admin এই কাজটি করতে পারবেন"
+    const url =
+      process.env.SUPABASE_URL;
+
+    const key =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SECRET_KEY;
+
+    if (!url || !key) {
+      return res.status(500).json({
+        error:
+          "Supabase environment variables missing"
       });
     }
 
-    const body = req.body || {};
+    const response =
+      await fetch(
+        `${url}/rest/v1/duty_settings` +
+        `?select=duty_hours,videos_required,` +
+        `ads_per_video,reward_per_ad,` +
+        `video_duration_seconds,total_ads,` +
+        `total_reward,active` +
+        `&active=eq.true` +
+        `&order=duty_hours.asc`,
+        {
+          method: "GET",
+          headers: {
+            apikey: key,
+            Authorization:
+              `Bearer ${key}`
+          }
+        }
+      );
 
-    /*
-      Duty hours আগে নেওয়া হবে।
-    */
+    const text =
+      await response.text();
 
-    const dutyHours = Number(body.duty_hours);
+    if (!response.ok) {
 
-    if (!Number.isFinite(dutyHours)) {
-      return res.status(400).json({
-        error: "Duty hours পাওয়া যায়নি"
+      return res.status(500).json({
+        error:
+          text ||
+          "Duty load failed"
       });
     }
 
-    /*
-      ৬ ঘণ্টা এবং ১২ ঘণ্টার Duty-এর
-      নির্দিষ্ট configuration।
-    */
-
-    let videoCount;
-    let adsPerVideo;
-    let rewardPerAd;
-    let videoDurationSeconds;
-
-    if (dutyHours === 6) {
-      videoCount = 4;
-      adsPerVideo = 20;
-      rewardPerAd = 10;
-      videoDurationSeconds = 5400;
-    } else if (dutyHours === 12) {
-      videoCount = 8;
-      adsPerVideo = 20;
-      rewardPerAd = 10;
-      videoDurationSeconds = 5400;
-    } else {
-      return res.status(400).json({
-        error: "শুধু ৬ ঘণ্টা অথবা ১২ ঘণ্টার Duty দেওয়া যাবে"
-      });
-    }
-
-    /*
-      হিসাব
-    */
-
-    const totalAds =
-      videoCount * adsPerVideo;
-
-    const totalReward =
-      totalAds * rewardPerAd;
-
-    /*
-      Database-এ save
-    */
-
-    const result = await supabaseRequest(
-      "duty_settings?on_conflict=duty_hours",
-      {
-        method: "POST",
-
-        body: JSON.stringify({
-          duty_hours: dutyHours,
-          videos_required: videoCount,
-          ads_per_video: adsPerVideo,
-          reward_per_ad: rewardPerAd,
-          video_duration_seconds:
-            videoDurationSeconds,
-          active: true,
-          updated_at:
-            new Date().toISOString()
-        })
-      }
-    );
+    const duties =
+      text
+        ? JSON.parse(text)
+        : [];
 
     return res.status(200).json({
       ok: true,
-
-      message:
-        `${dutyHours} ঘণ্টার Duty সফলভাবে Publish হয়েছে`,
-
-      total_ads: totalAds,
-
-      total_reward: totalReward,
-
-      duty:
-        Array.isArray(result)
-          ? result[0]
-          : result
+      duties
     });
 
   } catch (error) {
+
     console.error(
-      "Duty publish error:",
+      "Duty settings error:",
       error
     );
 
     return res.status(500).json({
-      ok: false,
       error:
         error.message ||
-        "Duty Publish করতে সমস্যা হয়েছে"
+        "Duty load failed"
     });
   }
 }
+```
