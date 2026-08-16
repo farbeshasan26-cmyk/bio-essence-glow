@@ -1,395 +1,206 @@
-```javascript
 async function load() {
   try {
-    // =========================
-    // Worker account information
-    // =========================
-
     const meResponse = await fetch("/api/me");
 
     if (!meResponse.ok) {
-      const errorText = await meResponse.text();
-
-      document.body.innerHTML =
-        "<h2>Login session error</h2>" +
-        "<pre>" +
-        errorText +
-        "</pre>" +
-        "<p>Status: " +
-        meResponse.status +
-        "</p>";
-
+      location.href = "/";
       return;
     }
 
     const u = await meResponse.json();
 
     document.getElementById("name").textContent =
-      "স্বাগতম, " +
-      (u.name || "Worker");
-
-    document.getElementById("phone").textContent =
-      u.phone || "Worker Account";
+      "স্বাগতম, " + (u.name || "Worker");
 
     document.getElementById("balance").textContent =
-      "৳" +
-      Number(u.balance || 0).toLocaleString("bn-BD");
+      "৳" + Number(u.balance || 0);
 
     document.getElementById("pending").textContent =
-      "৳" +
-      Number(
-        u.pending_balance ||
-        u.pending ||
-        0
-      ).toLocaleString("bn-BD");
+      "৳" + Number(u.pending_balance || 0);
 
-    document.getElementById("completedAds").textContent =
-      Number(
-        u.completed_ads ||
-        u.total_ads ||
-        0
-      ).toLocaleString("bn-BD");
-
-
-    // =========================
-    // Load published duties
-    // =========================
-
-    await loadDuties();
-
-
-    // =========================
-    // Load normal tasks
-    // =========================
-
-    const taskResponse =
-      await fetch("/api/tasks");
-
-    if (!taskResponse.ok) {
-      throw new Error(
-        "Task load failed"
-      );
-    }
-
-    const t =
-      await taskResponse.json();
-
-    const tasksElement =
-      document.getElementById("tasks");
-
-    if (!Array.isArray(t) || !t.length) {
-
-      tasksElement.innerHTML =
-        "<p>এই মুহূর্তে কোনো task নেই।</p>";
-
-    } else {
-
-      tasksElement.innerHTML =
-        t.map(x => `
-          <div class="task">
-
-            <div>
-              <b>${escapeHtml(x.title)}</b>
-
-              <p>
-                Reward: ৳${Number(
-                  x.reward || 0
-                )}
-
-                ·
-
-                ${Number(
-                  x.duration_seconds || 0
-                )}s
-              </p>
-            </div>
-
-            <button
-              onclick="completeTask(${Number(x.id)})"
-            >
-              Start
-            </button>
-
-          </div>
-        `).join("");
-    }
+    await loadDuty();
+    await loadTasks();
 
   } catch (error) {
+    console.error(error);
 
-    console.error(
-      "Dashboard error:",
-      error
-    );
-
-    const tasksElement =
-      document.getElementById("tasks");
-
-    if (tasksElement) {
-      tasksElement.innerHTML =
-        "<p>Dashboard load করতে সমস্যা হয়েছে।</p>";
-    }
+    document.getElementById("tasks").innerHTML =
+      "<p>ডেটা লোড করতে সমস্যা হয়েছে। পেজটি Refresh করুন।</p>";
   }
 }
 
-
-// ======================================
-// Load Admin-published Duty
-// ======================================
-
-async function loadDuties() {
-
-  const dutiesElement =
-    document.getElementById("duties");
-
-  if (!dutiesElement) return;
-
-  dutiesElement.innerHTML =
-    "<p>Duty লোড হচ্ছে...</p>";
+async function loadDuty() {
+  const container = document.getElementById("tasks");
 
   try {
+    const response = await fetch("/api/duty-settings");
 
-    const response =
-      await fetch("/api/duty-settings");
-
-    const data =
-      await response.json();
+    const data = await response.json();
 
     if (!response.ok) {
-
-      throw new Error(
-        data.error ||
-        "Duty load failed"
-      );
-    }
-
-    const duties =
-      Array.isArray(data.duties)
-        ? data.duties
-        : [];
-
-    if (!duties.length) {
-
-      dutiesElement.innerHTML =
-        "<p>এখনো কোনো Duty Publish করা হয়নি।</p>";
-
+      container.innerHTML =
+        "<p>Duty লোড করা যায়নি।</p>";
       return;
     }
 
+    const duties = Array.isArray(data.duties)
+      ? data.duties
+      : [];
 
-    dutiesElement.innerHTML =
-      duties.map(duty => {
+    if (!duties.length) {
+      container.innerHTML =
+        "<p>Admin এখনো কোনো Duty প্রকাশ করেননি।</p>";
+      return;
+    }
 
-        const hours =
-          Number(duty.duty_hours || 0);
-
-        const videos =
-          Number(
-            duty.videos_required ||
-            duty.video_count ||
-            0
-          );
-
-        const adsPerVideo =
-          Number(
-            duty.ads_per_video || 0
-          );
-
-        const rewardPerAd =
-          Number(
-            duty.reward_per_ad || 0
-          );
-
-        const totalAds =
-          Number(
-            duty.total_ads ||
-            videos * adsPerVideo
-          );
-
-        const totalReward =
-          Number(
-            duty.total_reward ||
-            totalAds * rewardPerAd
-          );
-
-        const durationSeconds =
-          Number(
-            duty.video_duration_seconds ||
-            0
-          );
-
-        const durationMinutes =
-          Math.round(
-            durationSeconds / 60
-          );
-
-
-        return `
-          <div class="duty-card">
-
-            <h3>
-              ${hours} ঘণ্টার Duty
-            </h3>
-
-            <p>
-              <strong>
-                ${videos}টি ভিডিও
-              </strong>
-            </p>
-
-            <p>
-              প্রতি ভিডিও:
-              ${adsPerVideo}টি Ads
-            </p>
-
-            <p>
-              প্রতি Ad:
-              ৳${rewardPerAd}
-            </p>
-
-            <p>
-              প্রতি ভিডিও:
-              ${durationMinutes} মিনিট
-            </p>
-
-            <p>
-              মোট Ads:
-              <strong>
-                ${totalAds}টি
-              </strong>
-            </p>
-
-            <p class="duty-reward">
-              মোট Reward:
-              <strong>
-                ৳${totalReward.toLocaleString("bn-BD")}
-              </strong>
-            </p>
-
-            <button
-              onclick="startDuty(${hours})"
-            >
-              Duty শুরু করুন
-            </button>
-
-          </div>
-        `;
-
-      }).join("");
-
-  } catch (error) {
-
-    console.error(
-      "Duty load error:",
-      error
-    );
-
-    dutiesElement.innerHTML =
-      `<p>${escapeHtml(
-        error.message ||
-        "Duty লোড করা যাচ্ছে না।"
-      )}</p>`;
-  }
-}
-
-
-// ======================================
-// Start Duty
-// ======================================
-
-function startDuty(hours) {
-
-  alert(
-    `${hours} ঘণ্টার Duty নির্বাচিত হয়েছে।`
-  );
-
-  /*
-    আসল ভিডিও/Ad workflow
-    পরের ধাপে এখানে যুক্ত করা হবে।
-  */
-}
-
-
-// ======================================
-// Complete normal task
-// ======================================
-
-async function completeTask(id) {
-
-  try {
-
-    const response =
-      await fetch(
-        "/api/tasks/" +
-        id +
-        "/complete",
-        {
-          method: "POST"
-        }
+    const dutyHtml = duties.map(duty => {
+      const hours = Number(duty.duty_hours || 0);
+      const videos = Number(duty.video_count || 0);
+      const ads = Number(duty.ads_per_video || 0);
+      const reward = Number(duty.reward_per_ad || 0);
+      const totalAds = Number(
+        duty.total_ads || videos * ads
+      );
+      const totalReward = Number(
+        duty.total_reward || totalAds * reward
       );
 
-    const data =
-      await response.json();
+      const durationSeconds = Number(
+        duty.video_duration_seconds || 5400
+      );
 
-    alert(
-      data.message ||
-      data.error ||
-      "Task complete হয়েছে"
-    );
+      const durationMinutes =
+        Math.round(durationSeconds / 60);
 
-    await load();
+      return `
+        <div class="task panel">
+          <h3>${hours} ঘণ্টার Duty</h3>
+
+          <p>ভিডিও: <strong>${videos}টি</strong></p>
+
+          <p>
+            প্রতি ভিডিওতে Ads:
+            <strong>${ads}টি</strong>
+          </p>
+
+          <p>
+            প্রতি Ad:
+            <strong>৳${reward}</strong>
+          </p>
+
+          <p>
+            মোট Ads:
+            <strong>${totalAds}টি</strong>
+          </p>
+
+          <p>
+            মোট Reward:
+            <strong>৳${totalReward}</strong>
+          </p>
+
+          <p>
+            প্রতি ভিডিও:
+            <strong>${durationMinutes} মিনিট</strong>
+          </p>
+
+          <button
+            onclick="startDuty(${hours})"
+          >
+            ${hours} ঘণ্টার Duty শুরু করুন
+          </button>
+        </div>
+      `;
+    }).join("");
+
+    container.innerHTML = dutyHtml;
 
   } catch (error) {
+    console.error("Duty load error:", error);
 
-    alert(
-      "Task complete করতে সমস্যা হয়েছে।"
-    );
-
-    console.error(error);
+    container.innerHTML =
+      "<p>Duty লোড করতে সমস্যা হয়েছে।</p>";
   }
 }
 
-
-// ======================================
-// Logout
-// ======================================
-
-async function logout() {
+async function loadTasks() {
+  const taskContainer = document.getElementById("tasks");
 
   try {
+    const response = await fetch("/api/tasks");
 
-    await fetch(
-      "/api/logout",
+    if (!response.ok) {
+      return;
+    }
+
+    const tasks = await response.json();
+
+    if (!Array.isArray(tasks) || !tasks.length) {
+      return;
+    }
+
+    const taskHtml = tasks.map(x => `
+      <div class="task">
+        <div>
+          <b>${x.title || "Task"}</b>
+          <p>
+            Reward: ৳${Number(x.reward || 0)}
+            · ${Number(x.duration_seconds || 0)}s
+          </p>
+        </div>
+
+        <button onclick="completeTask(${x.id})">
+          Start
+        </button>
+      </div>
+    `).join("");
+
+    taskContainer.insertAdjacentHTML(
+      "beforeend",
+      `
+        <div class="panel">
+          <h2>Available Tasks</h2>
+          ${taskHtml}
+        </div>
+      `
+    );
+
+  } catch (error) {
+    console.error("Task load error:", error);
+  }
+}
+
+function startDuty(hours) {
+  alert(
+    `${hours} ঘণ্টার Duty নির্বাচন করা হয়েছে।`
+  );
+}
+
+async function completeTask(id) {
+  try {
+    const response = await fetch(
+      "/api/tasks/" + id + "/complete",
       {
         method: "POST"
       }
     );
 
+    const data = await response.json();
+
+    alert(data.message || data.error || "Task completed");
+
+    load();
+
   } catch (error) {
-
-    console.error(error);
-
-  } finally {
-
-    window.location.href = "/";
+    alert("Task complete করতে সমস্যা হয়েছে।");
   }
 }
 
+async function logout() {
+  await fetch("/api/logout", {
+    method: "POST"
+  });
 
-// ======================================
-// Basic HTML escaping
-// ======================================
-
-function escapeHtml(value) {
-
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  location.href = "/";
 }
 
-
-// Start dashboard
 load();
-```
