@@ -1,25 +1,504 @@
-<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><link rel="stylesheet" href="/style.css"></head><body><main class="wrap"><div class="top"><div class="brand">BG <span>Admin Panel</span></div></div><section><h1>Worker Management</h1><div id="users"></div><div class="panel"><h2>Create Task</h2><input id="title" placeholder="Task title"><input id="url" placeholder="Video URL"><input id="reward" type="number" placeholder="Reward"><input id="duration" type="number" placeholder="Duration seconds" value="30"><button onclick="createTask()">Create Task</button><p id="msg"></p></div></section></main><script src="/admin.js"></script></body></html> <section class="panel">
-  <h2>Duty Management</h2>
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <div class="duty-grid">
-    <div class="duty-card">
-      <h3>৬ ঘণ্টার Duty</h3>
-      <p>৪টি ভিডিও · ৮০টি Ads</p>
-      <p><strong>Reward: ৳৮০০</strong></p>
-      <button onclick="createDuty(6,4,20,10,5400)">
-        Publish 6 Hour Duty
-      </button>
+  <title>Bio-essence Glow Ltd - Admin Panel</title>
+
+  <link rel="stylesheet" href="/style.css">
+
+  <style>
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    .logout-btn {
+      width: auto;
+      padding: 10px 18px;
+    }
+
+    .panel {
+      margin-top: 20px;
+    }
+
+    .duty-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-top: 15px;
+    }
+
+    .duty-card {
+      padding: 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.08);
+      background: #fff;
+    }
+
+    .duty-card h3 {
+      margin-top: 0;
+    }
+
+    .duty-card button {
+      margin-top: 10px;
+    }
+
+    .user {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,.08);
+    }
+
+    .user button {
+      width: auto;
+      padding: 8px 15px;
+    }
+
+    .status-message {
+      margin-top: 10px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+
+<main class="wrap">
+
+  <!-- HEADER -->
+
+  <div class="admin-header">
+
+    <div class="brand">
+      BG <span>Bio-essence Glow Ltd</span>
     </div>
 
-    <div class="duty-card">
-      <h3>১২ ঘণ্টার Duty</h3>
-      <p>৮টি ভিডিও · ১৬০টি Ads</p>
-      <p><strong>Reward: ৳১,৬০০</strong></p>
-      <button onclick="createDuty(12,8,20,10,5400)">
-        Publish 12 Hour Duty
-      </button>
-    </div>
+    <button
+      class="logout-btn"
+      onclick="logout()"
+    >
+      Logout
+    </button>
+
   </div>
 
-  <p id="dutyMsg"></p>
-</section>
+
+  <!-- WORKER MANAGEMENT -->
+
+  <section>
+
+    <h1>Worker Management</h1>
+
+    <div id="users">
+      <p>Loading workers...</p>
+    </div>
+
+  </section>
+
+
+  <!-- CREATE TASK -->
+
+  <section class="panel">
+
+    <h2>Create Task</h2>
+
+    <input
+      id="title"
+      placeholder="Task title"
+    >
+
+    <input
+      id="url"
+      placeholder="Video URL"
+    >
+
+    <input
+      id="reward"
+      type="number"
+      placeholder="Reward"
+    >
+
+    <input
+      id="duration"
+      type="number"
+      placeholder="Duration seconds"
+      value="5400"
+    >
+
+    <button onclick="createTask()">
+      Create Task
+    </button>
+
+    <p
+      id="msg"
+      class="status-message"
+    ></p>
+
+  </section>
+
+
+  <!-- DUTY MANAGEMENT -->
+
+  <section class="panel">
+
+    <h2>Duty Management</h2>
+
+    <div class="duty-grid">
+
+
+      <!-- 6 HOURS -->
+
+      <div class="duty-card">
+
+        <h3>৬ ঘণ্টার Duty</h3>
+
+        <p>
+          ৪টি ভিডিও
+        </p>
+
+        <p>
+          ৮০টি Ads
+        </p>
+
+        <p>
+          প্রতি Ad: <strong>৳১০</strong>
+        </p>
+
+        <p>
+          মোট Reward:
+          <strong>৳৮০০</strong>
+        </p>
+
+        <p>
+          প্রতি ভিডিও: ৯০ মিনিট
+        </p>
+
+        <button
+          onclick="createDuty(6,4,20,10,5400)"
+        >
+          Publish 6 Hour Duty
+        </button>
+
+      </div>
+
+
+      <!-- 12 HOURS -->
+
+      <div class="duty-card">
+
+        <h3>১২ ঘণ্টার Duty</h3>
+
+        <p>
+          ৮টি ভিডিও
+        </p>
+
+        <p>
+          ১৬০টি Ads
+        </p>
+
+        <p>
+          প্রতি Ad: <strong>৳১০</strong>
+        </p>
+
+        <p>
+          মোট Reward:
+          <strong>৳১,৬০০</strong>
+        </p>
+
+        <p>
+          প্রতি ভিডিও: ৯০ মিনিট
+        </p>
+
+        <button
+          onclick="createDuty(12,8,20,10,5400)"
+        >
+          Publish 12 Hour Duty
+        </button>
+
+      </div>
+
+    </div>
+
+    <p
+      id="dutyMsg"
+      class="status-message"
+    ></p>
+
+  </section>
+
+</main>
+
+
+<script>
+
+  /* =========================
+     LOAD WORKERS
+  ========================= */
+
+  async function load() {
+
+    const r = await fetch("/api/admin/users");
+
+    if (!r.ok) {
+
+      location.href = "/";
+
+      return;
+    }
+
+    const u = await r.json();
+
+    const container =
+      document.getElementById("users");
+
+    if (!u.length) {
+
+      container.innerHTML =
+        "<p>No workers yet.</p>";
+
+      return;
+    }
+
+    container.innerHTML = u.map(x => {
+
+      const approveButton =
+        x.status !== "active"
+          ? `<button onclick="approve(${x.id})">Approve</button>`
+          : "";
+
+      return `
+        <div class="user">
+
+          <div>
+
+            <b>${x.name || "Worker"}</b>
+
+            <p>
+              ${x.phone || ""}
+              ·
+              ${x.status || "pending"}
+            </p>
+
+          </div>
+
+          ${approveButton}
+
+        </div>
+      `;
+
+    }).join("");
+
+  }
+
+
+  /* =========================
+     APPROVE WORKER
+  ========================= */
+
+  async function approve(id) {
+
+    const r = await fetch(
+      "/api/admin/users/" + id + "/approve",
+      {
+        method: "POST"
+      }
+    );
+
+    if (!r.ok) {
+
+      alert("Worker approve করা যায়নি.");
+
+      return;
+    }
+
+    await load();
+
+  }
+
+
+  /* =========================
+     CREATE TASK
+  ========================= */
+
+  async function createTask() {
+
+    const title =
+      document.getElementById("title").value.trim();
+
+    const url =
+      document.getElementById("url").value.trim();
+
+    const reward =
+      document.getElementById("reward").value;
+
+    const duration =
+      document.getElementById("duration").value;
+
+    const msg =
+      document.getElementById("msg");
+
+
+    if (!title || !url || !reward || !duration) {
+
+      msg.textContent =
+        "সব তথ্য পূরণ করুন।";
+
+      return;
+    }
+
+
+    const r = await fetch(
+      "/api/admin/tasks",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+          title: title,
+          video_url: url,
+          reward: Number(reward),
+          duration_seconds: Number(duration)
+        })
+      }
+    );
+
+
+    const d = await r.json();
+
+
+    if (r.ok) {
+
+      msg.textContent =
+        "Task created successfully.";
+
+      document.getElementById("title").value = "";
+      document.getElementById("url").value = "";
+      document.getElementById("reward").value = "";
+
+    } else {
+
+      msg.textContent =
+        d.error || "Task তৈরি করা যায়নি.";
+
+    }
+
+  }
+
+
+  /* =========================
+     CREATE DUTY
+  ========================= */
+
+  async function createDuty(
+    duty_hours,
+    videos_required,
+    ads_per_video,
+    reward_per_ad,
+    video_duration_seconds
+  ) {
+
+    const msg =
+      document.getElementById("dutyMsg");
+
+    msg.textContent =
+      "Duty publish হচ্ছে...";
+
+
+    const r = await fetch(
+      "/api/admin/duty-settings",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+
+          duty_hours:
+            duty_hours,
+
+          videos_required:
+            videos_required,
+
+          ads_per_video:
+            ads_per_video,
+
+          reward_per_ad:
+            reward_per_ad,
+
+          video_duration_seconds:
+            video_duration_seconds
+
+        })
+      }
+    );
+
+
+    const d = await r.json();
+
+
+    if (r.ok) {
+
+      msg.textContent =
+        `${duty_hours} ঘণ্টার Duty successfully published.`;
+
+    } else {
+
+      msg.textContent =
+        d.error ||
+        "Duty publish করা যায়নি.";
+
+    }
+
+  }
+
+
+  /* =========================
+     ADMIN LOGOUT
+  ========================= */
+
+  async function logout() {
+
+    try {
+
+      await fetch(
+        "/api/logout",
+        {
+          method: "POST"
+        }
+      );
+
+    } finally {
+
+      location.href = "/";
+
+    }
+
+  }
+
+
+  /* =========================
+     START
+  ========================= */
+
+  load();
+
+</script>
+
+</body>
+</html>
