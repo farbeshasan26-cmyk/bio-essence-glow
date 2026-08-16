@@ -1,1 +1,25 @@
-<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><link rel="stylesheet" href="/style.css"></head><body><main class="wrap"><div class="top"><div class="brand">BG <span>Admin Panel</span></div></div><section><h1>Worker Management</h1><div id="users"></div><div class="panel"><h2>Create Task</h2><input id="title" placeholder="Task title"><input id="url" placeholder="Video URL"><input id="reward" type="number" placeholder="Reward"><input id="duration" type="number" placeholder="Duration seconds" value="30"><button onclick="createTask()">Create Task</button><p id="msg"></p></div></section></main><script src="/admin.js"></script></body></html>
+<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><link rel="stylesheet" href="/style.css"></head><body><main class="wrap"><div class="top"><div class="brand">BG <span>Admin Panel</span></div></div><section><h1>Worker Management</h1><div id="users"></div><div class="panel"><h2>Create Task</h2><input id="title" placeholder="Task title"><input id="url" placeholder="Video URL"><input id="reward" type="number" placeholder="Reward"><input id="duration" type="number" placeholder="Duration seconds" value="30"><button onclick="createTask()">Create Task</button><p id="msg"></p></div></section></main><script src="/admin.js"></script></body></html> <section class="panel">
+  <h2>Duty Management</h2>
+
+  <div class="duty-grid">
+    <div class="duty-card">
+      <h3>৬ ঘণ্টার Duty</h3>
+      <p>৪টি ভিডিও · ৮০টি Ads</p>
+      <p><strong>Reward: ৳৮০০</strong></p>
+      <button onclick="createDuty(6,4,20,10,5400)">
+        Publish 6 Hour Duty
+      </button>
+    </div>
+
+    <div class="duty-card">
+      <h3>১২ ঘণ্টার Duty</h3>
+      <p>৮টি ভিডিও · ১৬০টি Ads</p>
+      <p><strong>Reward: ৳১,৬০০</strong></p>
+      <button onclick="createDuty(12,8,20,10,5400)">
+        Publish 12 Hour Duty
+      </button>
+    </div>
+  </div>
+
+  <p id="dutyMsg"></p>
+</section>
